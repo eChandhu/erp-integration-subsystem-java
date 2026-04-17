@@ -1,4 +1,4 @@
-# ERP Integration Subsystem SDK
+# ERP Integration Subsystem 
 
 This workspace contains a MySQL-ready OOAD Integration subsystem SDK plus the local database setup files.
 
