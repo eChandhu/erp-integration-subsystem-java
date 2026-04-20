@@ -1,4 +1,4 @@
-# Database Integration Subsystem - Try 2
+# Database Integration Subsystem 
 
 This folder is a clean, submission-ready version of the Database Integration subsystem. It is designed to satisfy the OOAD requirements using Java, MySQL, JDBC, HikariCP connection pooling, permission-controlled CRUD access, audit logging, backup/restore, and subsystem-specific facade classes that other teams can compile against.
 
@@ -200,15 +200,6 @@ Important note:
 - Backup/restore needs `mysqldump` and `mysql` CLI tools available in `PATH`
 - Restore is intentionally restricted to admin users because it affects the full database
 
-## What You Still Need To Do On Your Machine
-
-1. Start Docker Desktop
-2. Run the local DB setup scripts
-3. Run the demo modes against the live DB
-4. If your faculty wants a cloud database, create Amazon RDS MySQL and point the config file to it
-5. Share the built JAR with other teams and do at least one real integration test
-6. Keep screenshots/output for your final demo
-
 ## Suggested Demo Flow
 
 1. Explain your subsystem scope
@@ -219,11 +210,3 @@ Important note:
 6. Show the built JAR
 7. Explain patterns and layered architecture
 
-## Verified In This Session
-
-- Team SQL files were read and reconciled conceptually
-- UI data requirements extract was read
-- A fresh `try 2` project folder was created without modifying the old files
-- Maven build was run successfully for `try 2`
-
-Live MySQL execution was not performed from this session, so Docker/database runtime validation still needs to be run on your machine.
