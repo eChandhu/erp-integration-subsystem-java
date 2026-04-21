@@ -1,0 +1,4 @@
+com\likeseca\erp\database\integration\TestDatabaseDefaults.class
+com\likeseca\erp\database\integration\FacadeApiSurfaceTest.class
+com\likeseca\erp\database\integration\AllSubsystemBehaviorSmokeTest.class
+com\likeseca\erp\database\integration\DatabaseIntegrationSubsystemSmokeTest.class
