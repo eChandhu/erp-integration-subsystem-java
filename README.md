@@ -74,6 +74,48 @@ Main areas:
 - `dist`: prebuilt distribution bundle
 - `IntegrationDB`: ready-to-share delivery bundle
 
+## Design Approach
+
+This project is structured with a strong focus on separation of concerns, maintainability, and handoff simplicity, and it reflects a solid grasp of reusable design patterns for a multi-subsystem ERP environment.
+
+The design follows SOLID-oriented thinking:
+
+- `Single Responsibility Principle`
+  - `config` handles database setup and schema bootstrap
+  - `security` handles permission lookup and permission checks
+  - `service` handles SQL execution and CRUD/join behavior
+  - `adapter` binds each subsystem to the shared operations layer
+  - `facade` exposes a clean API for consuming teams
+- `Open/Closed Principle`
+  - new subsystem adapters and subsystem facades can be added without rewriting the core CRUD engine
+- `Liskov Substitution Principle`
+  - subsystem facades share the same behavior contract through the common facade and adapter structure
+- `Interface Segregation Principle`
+  - consumers use focused subsystem-facing entry points instead of dealing with one large low-level API surface
+- `Dependency Inversion Principle`
+  - higher-level subsystem APIs depend on shared abstractions and service layers instead of embedding raw JDBC logic everywhere
+
+Patterns used in the project:
+
+- `Facade`
+  - where: `ErpDatabaseFacade` and subsystem facade classes
+  - why: gives other teams one simple entry point instead of making them work directly with bootstrap, permission, and SQL internals
+- `Adapter`
+  - where: subsystem adapter classes such as CRM, HR, Supply Chain, and others
+  - why: maps each subsystem to the same underlying permission-aware operations layer while keeping subsystem entry points clean
+- `Singleton`
+  - where: database connection manager
+  - why: centralizes connection lifecycle and avoids uncontrolled connection creation across the module
+- `Template-style shared operation flow`
+  - where: the permission-aware operations service
+  - why: keeps create, read, update, delete, and join flows consistent by always following the same sequence of permission check, column filtering, SQL execution, and exception handling
+- `Layered architecture`
+  - where: `config -> security -> service -> adapter -> facade`
+  - why: reduces coupling and makes the project easier to test, extend, and hand off to other teams
+
+This combination is especially useful for this project because the module has to act like a reusable local database platform for many subsystems, not just a one-off application.
+
+
 ## Requirements
 
 - Java 21
