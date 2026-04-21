@@ -11,6 +11,15 @@ public final class SubsystemFactory {
     private SubsystemFactory() {
     }
 
+    /**
+     * Convenience entry point for teams using only the distributed JAR. It uses
+     * local MySQL defaults or a nearby application.properties file and still
+     * bootstraps the schema before the subsystem object is returned.
+     */
+    public static AbstractSubsystem create(SubsystemName subsystemName) {
+        return create(subsystemName, DatabaseConfig.load());
+    }
+
     public static AbstractSubsystem create(SubsystemName subsystemName, DatabaseConfig config) {
         ConnectionManager connectionManager = new ConnectionManager(config);
         PermissionService permissionService = new PermissionService();

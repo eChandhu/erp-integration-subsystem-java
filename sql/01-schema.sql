@@ -80,8 +80,13 @@ DROP VIEW IF EXISTS scheduler;
 DROP VIEW IF EXISTS report_data;
 DROP VIEW IF EXISTS budget;
 DROP VIEW IF EXISTS assignment;
+DROP VIEW IF EXISTS attendance_record;
+DROP VIEW IF EXISTS candidate;
+DROP VIEW IF EXISTS leave_request;
+DROP VIEW IF EXISTS payroll;
 
 DROP TABLE IF EXISTS inventory_reorders;
+DROP TABLE IF EXISTS suppliers_purchase_seed;
 DROP TABLE IF EXISTS analytics_engines;
 DROP TABLE IF EXISTS visualizations;
 DROP TABLE IF EXISTS filter_sets;
@@ -162,6 +167,18 @@ DROP TABLE IF EXISTS project_resources;
 DROP TABLE IF EXISTS project_tasks;
 DROP TABLE IF EXISTS projects;
 DROP TABLE IF EXISTS quality_inspections;
+DROP TABLE IF EXISTS onboarding_activity_log;
+DROP TABLE IF EXISTS onboarding_record;
+DROP TABLE IF EXISTS workforce_plan;
+DROP TABLE IF EXISTS promotion;
+DROP TABLE IF EXISTS payroll;
+DROP TABLE IF EXISTS leave_request;
+DROP TABLE IF EXISTS leave_balance;
+DROP TABLE IF EXISTS claim;
+DROP TABLE IF EXISTS candidate;
+DROP TABLE IF EXISTS benefit_enrollment;
+DROP TABLE IF EXISTS attendance_record;
+DROP TABLE IF EXISTS appraisal;
 DROP TABLE IF EXISTS production_orders;
 DROP TABLE IF EXISTS mrp_plans;
 DROP TABLE IF EXISTS routings;
@@ -775,6 +792,112 @@ CREATE TABLE performance_reviews (
     feedback TEXT,
     review_date DATE DEFAULT (CURRENT_DATE),
     CONSTRAINT fk_review_employee FOREIGN KEY (employee_id) REFERENCES employees(employee_id)
+);
+
+CREATE TABLE appraisal (
+    appraise_id VARCHAR(255) PRIMARY KEY,
+    appraisal_status ENUM('COMPLETED', 'PENDING') NOT NULL,
+    deadline_date DATE NOT NULL,
+    employee_id VARCHAR(255) NOT NULL,
+    feedback VARCHAR(255) NULL,
+    locked BOOLEAN NOT NULL DEFAULT FALSE,
+    rating DOUBLE NOT NULL
+);
+
+CREATE TABLE attendance_record (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    employee_id VARCHAR(20) NOT NULL,
+    attendance_date DATE NOT NULL,
+    check_in_time TIME NULL,
+    check_out_time TIME NULL,
+    overtime_hours DOUBLE NULL
+);
+
+CREATE TABLE benefit_enrollment (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    employee_id VARCHAR(20) NOT NULL,
+    enrollment_status ENUM('ENROLLED', 'NOT_ENROLLED', 'PENDING') NOT NULL,
+    health_plan VARCHAR(255) NULL,
+    insurance_plan VARCHAR(255) NULL,
+    insurance_coverage_status ENUM('ACTIVE', 'INACTIVE') NULL
+);
+
+CREATE TABLE candidate (
+    candidate_id VARCHAR(255) PRIMARY KEY,
+    candidate_name VARCHAR(255) NOT NULL,
+    contact_info VARCHAR(255) NOT NULL,
+    resume_data VARCHAR(255) NOT NULL,
+    interview_score DOUBLE NULL,
+    application_status ENUM('APPLIED', 'INTERVIEW', 'REJECTED', 'SELECTED', 'SHORTLISTED') NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE claim (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    employee_id VARCHAR(20) NOT NULL,
+    claim_type VARCHAR(255) NULL,
+    amount DECIMAL(10,2) NULL,
+    claim_status ENUM('APPROVED', 'PENDING') NOT NULL
+);
+
+CREATE TABLE leave_balance (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    employee_id VARCHAR(20) NOT NULL UNIQUE,
+    balance INT NOT NULL DEFAULT 20
+);
+
+CREATE TABLE leave_request (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    employee_id VARCHAR(20) NOT NULL,
+    leave_from_date DATE NOT NULL,
+    leave_to_date DATE NOT NULL,
+    leave_status ENUM('APPROVED', 'PENDING', 'REJECTED') NOT NULL
+);
+
+CREATE TABLE payroll (
+    payrollId BIGINT PRIMARY KEY AUTO_INCREMENT,
+    currentMonthTotal DECIMAL(38,2) NULL,
+    deductions DECIMAL(38,2) NULL,
+    grossSalary DECIMAL(38,2) NULL,
+    netPay DECIMAL(38,2) NULL,
+    role VARCHAR(255) NULL,
+    salaryTransferRecord VARCHAR(255) NULL,
+    employee_id VARCHAR(20) NULL,
+    month VARCHAR(255) NOT NULL,
+    year INT NOT NULL
+);
+
+CREATE TABLE promotion (
+    promotion_id VARCHAR(255) PRIMARY KEY,
+    effective_date DATE NOT NULL,
+    employee_id VARCHAR(255) NOT NULL,
+    new_role VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE workforce_plan (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    department VARCHAR(255) NOT NULL,
+    hiring_forecast INT NOT NULL,
+    hr_cost_projections DECIMAL(38,2) NOT NULL,
+    open_positions INT NOT NULL,
+    quarter VARCHAR(255) NOT NULL,
+    total_budget DECIMAL(38,2) NOT NULL
+);
+
+CREATE TABLE onboarding_record (
+    onboarding_id VARCHAR(255) PRIMARY KEY,
+    assigned_employee_id VARCHAR(255) NOT NULL,
+    background_check_status ENUM('CLEARED', 'FAILED', 'PENDING') NOT NULL,
+    document_verification_status ENUM('PENDING', 'REJECTED', 'VERIFIED') NOT NULL,
+    employee_name VARCHAR(255) NOT NULL,
+    pipeline_status ENUM('ACTIVE_ONBOARDING', 'BACKGROUND_CHECK', 'DOCUMENT_VERIFICATION', 'EMPLOYEE_ASSIGNED', 'VERIFIED') NOT NULL,
+    verified_record BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE TABLE onboarding_activity_log (
+    onboarding_id VARCHAR(255) NOT NULL,
+    activity VARCHAR(255) NULL
 );
 
 CREATE TABLE project (
@@ -1614,7 +1737,7 @@ INSERT INTO integration_registry (subsystem_name, api_key_hash) VALUES
 ('Business Control', 'hash_control'),
 ('Financial Management', 'hash_finance');
 
-INSERT INTO data_ownership (resource_table, owner_subsystem_id, stewardship_notes)
+INSERT IGNORE INTO data_ownership (resource_table, owner_subsystem_id, stewardship_notes)
 SELECT 'integration_registry', subsystem_id, 'Canonical registry owned by Integration' FROM integration_registry WHERE subsystem_name = 'Integration'
 UNION ALL
 SELECT 'permission_matrix', subsystem_id, 'Authorization rules owned by Integration' FROM integration_registry WHERE subsystem_name = 'Integration'
@@ -2007,7 +2130,7 @@ INSERT INTO supplier_invoices (po_id, invoice_amount, invoice_date, due_date, pa
 INSERT INTO customer_invoices (order_id, qty_produced, unit_price, total_amount, generated_date) VALUES
 (1, 1, 2200000.00, 2200000.00, '2026-04-07');
 
-INSERT INTO permission_matrix
+INSERT IGNORE INTO permission_matrix
 (subsystem_id, resource_table, can_create, can_read, can_update, can_delete, readable_columns, writable_columns, allowed_row_filter)
 SELECT subsystem_id, 'integration_registry', TRUE, TRUE, TRUE, TRUE,
 JSON_ARRAY('subsystem_id','subsystem_name','api_key_hash','is_active','created_at','updated_at'),
@@ -2177,7 +2300,7 @@ JSON_ARRAY('project_id','user_id','role_in_project'),
 NULL
 FROM integration_registry WHERE subsystem_name = 'Project Management';
 
-INSERT INTO data_ownership (resource_table, owner_subsystem_id, stewardship_notes)
+INSERT IGNORE INTO data_ownership (resource_table, owner_subsystem_id, stewardship_notes)
 SELECT 'leads', subsystem_id, 'CRM lead intake compatibility table' FROM integration_registry WHERE subsystem_name = 'CRM'
 UNION ALL
 SELECT 'interactions', subsystem_id, 'CRM interaction compatibility table' FROM integration_registry WHERE subsystem_name = 'CRM'
@@ -2222,7 +2345,7 @@ SELECT 'report_runs', subsystem_id, 'Analytics report execution logs' FROM integ
 UNION ALL
 SELECT 'alerts', subsystem_id, 'Analytics alert thresholds' FROM integration_registry WHERE subsystem_name = 'Data Analytics';
 
-INSERT INTO permission_matrix
+INSERT IGNORE INTO permission_matrix
 (subsystem_id, resource_table, can_create, can_read, can_update, can_delete, readable_columns, writable_columns, allowed_row_filter)
 SELECT subsystem_id, 'leads', TRUE, TRUE, TRUE, FALSE,
 JSON_ARRAY('lead_id','name','email','status','created_at','updated_at'),
@@ -2235,6 +2358,12 @@ JSON_ARRAY('interaction_id','lead_id','customer_id','interaction_type','notes','
 JSON_ARRAY('lead_id','customer_id','interaction_type','notes'),
 NULL
 FROM integration_registry WHERE subsystem_name = 'CRM'
+UNION ALL
+SELECT subsystem_id, 'customers', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('customer_id','lead_id','name','email','phone','segment','region','interested_car_model','purchased_vin','vehicle_model_year','lifetime_value','ltv','status','last_contact_date','first_name','last_name','city','age','interest','created_at','updated_at'),
+JSON_ARRAY('lead_id','name','email','phone','segment','region','interested_car_model','purchased_vin','vehicle_model_year','lifetime_value','ltv','status','last_contact_date','first_name','last_name','city','age','interest'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Sales Management'
 UNION ALL
 SELECT subsystem_id, 'deals', TRUE, TRUE, TRUE, FALSE,
 JSON_ARRAY('deal_id','customer_id','quote_id','amount','stage','status','probability','expected_close_date','created_at','updated_at'),
@@ -2390,7 +2519,7 @@ UPDATE permission_matrix pm
 JOIN integration_registry ir ON ir.subsystem_id = pm.subsystem_id
 SET pm.readable_columns = JSON_ARRAY('customer_id','lead_id','name','email','phone','segment','region','interested_car_model','purchased_vin','vehicle_model_year','lifetime_value','ltv','status','last_contact_date','first_name','last_name','city','age','interest','created_at','updated_at'),
     pm.writable_columns = JSON_ARRAY('lead_id','name','email','phone','segment','region','interested_car_model','purchased_vin','vehicle_model_year','lifetime_value','ltv','status','last_contact_date','first_name','last_name','city','age','interest')
-WHERE ir.subsystem_name = 'CRM' AND pm.resource_table = 'customers';
+WHERE ir.subsystem_name IN ('CRM', 'Sales Management') AND pm.resource_table = 'customers';
 
 UPDATE permission_matrix pm
 JOIN integration_registry ir ON ir.subsystem_id = pm.subsystem_id
@@ -2452,7 +2581,7 @@ SET pm.readable_columns = JSON_ARRAY('metric_id','dataset_id','metric_name','met
     pm.writable_columns = JSON_ARRAY('dataset_id','metric_name','metric_formula','unit')
 WHERE ir.subsystem_name = 'Business Intelligence' AND pm.resource_table = 'metrics';
 
-INSERT INTO data_ownership (resource_table, owner_subsystem_id, stewardship_notes)
+INSERT IGNORE INTO data_ownership (resource_table, owner_subsystem_id, stewardship_notes)
 SELECT 'project', subsystem_id, 'Canonical project registry aligned with project management team SQL.'
 FROM integration_registry WHERE subsystem_name = 'Project Management'
 UNION ALL
@@ -2498,7 +2627,7 @@ UNION ALL
 SELECT 'automation_expenses', subsystem_id, 'Automation expense tracking aligned with manufacturing automation SQL.'
 FROM integration_registry WHERE subsystem_name = 'Automation';
 
-INSERT INTO data_ownership (resource_table, owner_subsystem_id, stewardship_notes)
+INSERT IGNORE INTO data_ownership (resource_table, owner_subsystem_id, stewardship_notes)
 SELECT 'source_types', subsystem_id, 'BI source type master data from the phase 3 BI schema.'
 FROM integration_registry WHERE subsystem_name = 'Business Intelligence'
 UNION ALL
@@ -2547,7 +2676,7 @@ UNION ALL
 SELECT 'analytics_engines', subsystem_id, 'BI analytics engine metadata.'
 FROM integration_registry WHERE subsystem_name = 'Business Intelligence';
 
-INSERT INTO permission_matrix
+INSERT IGNORE INTO permission_matrix
     (subsystem_id, resource_table, can_create, can_read, can_update, can_delete, readable_columns, writable_columns, allowed_row_filter)
 SELECT subsystem_id, 'project', TRUE, TRUE, TRUE, TRUE,
 JSON_ARRAY('id','name','description','manager_name','start_date','end_date','status','objectives','progress_pct','budget_total','budget_spent','updated_at'),
@@ -2639,7 +2768,7 @@ JSON_ARRAY('order_id','expense_type','amount','recorded_date','notes'),
 NULL
 FROM integration_registry WHERE subsystem_name = 'Automation';
 
-INSERT INTO permission_matrix
+INSERT IGNORE INTO permission_matrix
     (subsystem_id, resource_table, can_create, can_read, can_update, can_delete, readable_columns, writable_columns, allowed_row_filter)
 SELECT subsystem_id, 'source_types', TRUE, TRUE, TRUE, FALSE,
 JSON_ARRAY('source_type_id','type_code','type_name','description'),
@@ -2755,6 +2884,644 @@ JSON_ARRAY('data_source_id','dataset_name','description','processing_stage','sou
 NULL
 FROM integration_registry WHERE subsystem_name = 'Business Intelligence';
 
+-- Additional permission fixes based on subsystem data requirements.
+INSERT IGNORE INTO permission_matrix
+    (subsystem_id, resource_table, can_create, can_read, can_update, can_delete, readable_columns, writable_columns, allowed_row_filter)
+SELECT subsystem_id, 'customers', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('customer_id','lead_id','name','email','phone','segment','region','interested_car_model','purchased_vin','vehicle_model_year','lifetime_value','ltv','status','last_contact_date','first_name','last_name','city','age','interest','created_at','updated_at'),
+JSON_ARRAY('lead_id','name','email','phone','segment','region','interested_car_model','purchased_vin','vehicle_model_year','lifetime_value','ltv','status','last_contact_date','first_name','last_name','city','age','interest'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'CRM'
+UNION ALL
+SELECT subsystem_id, 'campaigns', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('campaign_id','campaign_title','campaign_name','campaign_type','target_vehicle_segment','campaign_budget','budget','revenue','target_leads','segment_id','start_date','end_date','campaign_roi','campaign_results','status','impressions','clicks','conversions','lead_target','leads_generated','created_at','updated_at'),
+JSON_ARRAY('campaign_title','campaign_name','campaign_type','target_vehicle_segment','campaign_budget','budget','revenue','target_leads','segment_id','start_date','end_date','campaign_roi','campaign_results','status','impressions','clicks','conversions','lead_target','leads_generated'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'CRM'
+UNION ALL
+SELECT subsystem_id, 'campaigns', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('campaign_id','campaign_title','campaign_name','campaign_type','target_vehicle_segment','campaign_budget','budget','revenue','target_leads','segment_id','start_date','end_date','campaign_roi','campaign_results','status','impressions','clicks','conversions','lead_target','leads_generated','created_at','updated_at'),
+JSON_ARRAY('campaign_title','campaign_name','campaign_type','target_vehicle_segment','campaign_budget','budget','revenue','target_leads','segment_id','start_date','end_date','campaign_roi','campaign_results','status','impressions','clicks','conversions','lead_target','leads_generated'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Marketing'
+UNION ALL
+SELECT subsystem_id, 'customers', FALSE, TRUE, TRUE, FALSE,
+JSON_ARRAY('customer_id','lead_id','name','email','phone','segment','region','interested_car_model','purchased_vin','vehicle_model_year','lifetime_value','ltv','status','last_contact_date','first_name','last_name','city','age','interest','created_at','updated_at'),
+JSON_ARRAY('lead_id','name','email','phone','segment','region','interested_car_model','purchased_vin','vehicle_model_year','lifetime_value','ltv','status','last_contact_date','first_name','last_name','city','age','interest'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Marketing'
+UNION ALL
+SELECT subsystem_id, 'customers', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('customer_id','lead_id','name','email','phone','segment','region','interested_car_model','purchased_vin','vehicle_model_year','lifetime_value','ltv','status','last_contact_date','first_name','last_name','city','age','interest','created_at','updated_at'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Order Processing'
+UNION ALL
+SELECT subsystem_id, 'deals', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('deal_id','customer_id','quote_id','amount','stage','status','probability','expected_close_date','created_at','updated_at'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Order Processing'
+UNION ALL
+SELECT subsystem_id, 'quotes', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('quote_id','customer_id','deal_id','total_amount','discount','final_amount','created_at','updated_at'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Order Processing'
+UNION ALL
+SELECT subsystem_id, 'quote_items', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('quote_item_id','quote_id','product_name','quantity','price','created_at','updated_at'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Order Processing'
+UNION ALL
+SELECT subsystem_id, 'orders', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('order_id','quote_id','customer_id','car_vin','customer_name','customer_contact_details','contact_details','vehicle_model','vehicle_variant','vehicle_color','custom_features','order_date','order_status','current_status','total_amount','order_value','payment_status','order_details','updated_at'),
+JSON_ARRAY('quote_id','customer_id','car_vin','customer_name','customer_contact_details','contact_details','vehicle_model','vehicle_variant','vehicle_color','custom_features','order_status','current_status','total_amount','order_value','payment_status','order_details'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Order Processing'
+UNION ALL
+SELECT subsystem_id, 'payments', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('payment_id','invoice_id','order_id','payment_method','payment_amount','amount','payment_status','status','transaction_details','payment_date','updated_at'),
+JSON_ARRAY('invoice_id','order_id','payment_method','payment_amount','amount','payment_status','status','transaction_details','payment_date'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Order Processing'
+UNION ALL
+SELECT subsystem_id, 'shipments', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('shipment_id','order_id','carrier_name','tracking_number','shipment_status','shipped_date','expected_delivery_date','delivered_date','created_at','updated_at'),
+JSON_ARRAY('order_id','carrier_name','tracking_number','shipment_status','shipped_date','expected_delivery_date','delivered_date'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Order Processing'
+UNION ALL
+SELECT subsystem_id, 'suppliers', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('supplier_id','supplier_name','contact_info','address','compliance_status','scorecard','approved','payment_terms','created_at','updated_at'),
+JSON_ARRAY('supplier_name','contact_info','address','compliance_status','scorecard','approved','payment_terms'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Supply Chain'
+UNION ALL
+SELECT subsystem_id, 'purchase_orders', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('po_id','supplier_id','order_date','status','amount','total_amount','created_date','approval_date','created_by','approved_by','eta','created_at','updated_at'),
+JSON_ARRAY('supplier_id','order_date','status','amount','total_amount','created_date','approval_date','created_by','approved_by','eta'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Supply Chain'
+UNION ALL
+SELECT subsystem_id, 'shipments', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('shipment_id','order_id','carrier_name','tracking_number','shipment_status','shipped_date','expected_delivery_date','delivered_date','created_at','updated_at'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Supply Chain'
+UNION ALL
+SELECT subsystem_id, 'materials', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('item_id','item_code','item_name','item_type','uom','standard_cost','status','created_at','updated_at'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Supply Chain'
+UNION ALL
+SELECT subsystem_id, 'employees', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('employee_id','employee_code','full_name','email','department','designation','hire_date','base_salary','manager_id','status','created_at','updated_at'),
+JSON_ARRAY('employee_code','full_name','email','department','designation','hire_date','base_salary','manager_id','status'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'recruitment_candidates', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('candidate_id','full_name','email','phone','position_applied','application_status','created_at','updated_at'),
+JSON_ARRAY('full_name','email','phone','position_applied','application_status'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'payroll_records', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('payroll_id','employee_id','pay_period_start','pay_period_end','gross_salary','deductions','net_salary','processed_at','updated_at'),
+JSON_ARRAY('employee_id','pay_period_start','pay_period_end','gross_salary','deductions','net_salary','processed_at'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'attendance_records', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('attendance_id','employee_id','attendance_date','check_in_time','check_out_time','attendance_status','updated_at'),
+JSON_ARRAY('employee_id','attendance_date','check_in_time','check_out_time','attendance_status'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'leave_requests', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('leave_request_id','employee_id','leave_type','start_date','end_date','approval_status','applied_at','updated_at'),
+JSON_ARRAY('employee_id','leave_type','start_date','end_date','approval_status','applied_at'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'performance_reviews', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('review_id','employee_id','review_period','review_score','review_comments','reviewed_by','reviewed_at','updated_at'),
+JSON_ARRAY('employee_id','review_period','review_score','review_comments','reviewed_by','reviewed_at'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'reports', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('report_id','title','report_name','title_alias','report_type','generated_by','generated_date','start_date','end_date','format_id','report_data','content','created_at','updated_at'),
+JSON_ARRAY('title','report_name','title_alias','report_type','generated_by','generated_date','start_date','end_date','format_id','report_data','content'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Reporting'
+UNION ALL
+SELECT subsystem_id, 'report_filters', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('filter_id','report_id','date_from','date_to','customer_segment','created_at','updated_at'),
+JSON_ARRAY('report_id','date_from','date_to','customer_segment'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Reporting'
+UNION ALL
+SELECT subsystem_id, 'report_templates', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('template_id','template_name','layout','created_at','updated_at'),
+JSON_ARRAY('template_name','layout'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Reporting'
+UNION ALL
+SELECT subsystem_id, 'report_exports', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('export_id','report_id','format','export_url','export_date','created_at','updated_at'),
+JSON_ARRAY('report_id','format','export_url','export_date'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Reporting'
+UNION ALL
+SELECT subsystem_id, 'scheduler', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('schedule_id','report_id','schedule_time','created_at','updated_at'),
+JSON_ARRAY('report_id','schedule_time'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Reporting'
+UNION ALL
+SELECT subsystem_id, 'report_data', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('data_id','report_id','customer_id','total_value','created_at','updated_at'),
+JSON_ARRAY('report_id','customer_id','total_value'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Reporting'
+UNION ALL
+SELECT subsystem_id, 'users', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('user_id','username','email','role_id','department','is_active','last_login','created_at','updated_at'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Reporting'
+UNION ALL
+SELECT subsystem_id, 'customers', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('customer_id','lead_id','name','email','phone','segment','region','interested_car_model','purchased_vin','vehicle_model_year','lifetime_value','ltv','status','last_contact_date','first_name','last_name','city','age','interest','created_at','updated_at'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Reporting'
+UNION ALL
+SELECT subsystem_id, 'users', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('user_id','username','email','role_id','department','is_active','last_login','created_at','updated_at'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Data Analytics'
+UNION ALL
+SELECT subsystem_id, 'data_sources', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('data_source_id','source_name','source_type','source_type_id','connection_details','is_active','module','created_at','updated_at'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Data Analytics'
+UNION ALL
+SELECT subsystem_id, 'dashboards', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('dashboard_id','dashboard_name','owner_user_id','user_name','description','dashboard_payload','last_updated','created_at','updated_at','title','owner_id','is_public'),
+JSON_ARRAY('dashboard_name','owner_user_id','user_name','description','dashboard_payload','last_updated','title','owner_id','is_public'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Data Analytics'
+UNION ALL
+SELECT subsystem_id, 'dashboard_kpis', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('dashboard_kpi_id','dashboard_id','kpi_id','chart_type','display_order','created_at','updated_at'),
+JSON_ARRAY('dashboard_id','kpi_id','chart_type','display_order'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Data Analytics'
+UNION ALL
+SELECT subsystem_id, 'invoices', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('invoice_id','order_id','generated_date','invoice_amount','tax_details','invoice_status','payment_status','due_date','updated_at'),
+JSON_ARRAY('order_id','generated_date','invoice_amount','tax_details','invoice_status','payment_status','due_date'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Financial Management'
+UNION ALL
+SELECT subsystem_id, 'reports', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('report_id','title','report_name','title_alias','report_type','generated_by','generated_date','start_date','end_date','format_id','report_data','content','created_at','updated_at'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Financial Management'
+UNION ALL
+SELECT subsystem_id, 'system_config', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('config_id','config_key','connection_string','config_value','created_at','updated_at'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Financial Management'
+UNION ALL
+SELECT subsystem_id, 'users', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('user_id','username','email','role_id','department','is_active','last_login','created_at','updated_at'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Business Intelligence';
+
+INSERT IGNORE INTO data_ownership (resource_table, owner_subsystem_id, stewardship_notes)
+SELECT 'appraisal', subsystem_id, 'HR appraisal compatibility table' FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT 'attendance_record', subsystem_id, 'HR attendance compatibility table' FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT 'benefit_enrollment', subsystem_id, 'HR benefits compatibility table' FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT 'candidate', subsystem_id, 'HR candidate compatibility table' FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT 'claim', subsystem_id, 'HR claim compatibility table' FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT 'leave_balance', subsystem_id, 'HR leave balance compatibility table' FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT 'leave_request', subsystem_id, 'HR leave request compatibility table' FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT 'payroll', subsystem_id, 'HR payroll compatibility table' FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT 'promotion', subsystem_id, 'HR promotion compatibility table' FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT 'workforce_plan', subsystem_id, 'HR workforce plan compatibility table' FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT 'onboarding_record', subsystem_id, 'HR onboarding compatibility table' FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT 'onboarding_activity_log', subsystem_id, 'HR onboarding log compatibility table' FROM integration_registry WHERE subsystem_name = 'HR';
+
+INSERT IGNORE INTO permission_matrix
+    (subsystem_id, resource_table, can_create, can_read, can_update, can_delete, readable_columns, writable_columns, allowed_row_filter)
+SELECT subsystem_id, 'segments', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('segment_id','name','criteria'),
+JSON_ARRAY('name','criteria'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Marketing'
+UNION ALL
+SELECT subsystem_id, 'crm_leads', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('lead_id','name','email','status','created_at','updated_at'),
+JSON_ARRAY('name','email','status'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'CRM'
+UNION ALL
+SELECT subsystem_id, 'customer_interactions', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('interaction_id','lead_id','customer_id','interaction_type','notes','interaction_timestamp','updated_at'),
+JSON_ARRAY('lead_id','customer_id','interaction_type','notes'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'CRM'
+UNION ALL
+SELECT subsystem_id, 'sales_opportunities', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('deal_id','customer_id','quote_id','amount','stage','status','probability','expected_close_date','created_at','updated_at'),
+JSON_ARRAY('customer_id','quote_id','amount','stage','status','probability','expected_close_date'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Sales Management'
+UNION ALL
+SELECT subsystem_id, 'sales_quotations', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('quote_id','customer_id','deal_id','total_amount','discount','final_amount','created_at','updated_at'),
+JSON_ARRAY('customer_id','deal_id','total_amount','discount','final_amount'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Sales Management'
+UNION ALL
+SELECT subsystem_id, 'materials', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('product_id','product_name','category','uom','stock_qty','reorder_level'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Supply Chain'
+UNION ALL
+SELECT subsystem_id, 'automation_orders', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('order_id','product_id','qty_requested','created_at','due_date','status'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Automation'
+UNION ALL
+SELECT subsystem_id, 'bom_header', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('bom_id','product_id','revision_no','active','created_at'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Manufacturing'
+UNION ALL
+SELECT subsystem_id, 'po_line_items', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('line_id','po_id','item_id','qty_ordered','unit_price','uom'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Supply Chain'
+UNION ALL
+SELECT subsystem_id, 'quality_checks', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('qc_id','production_order_id','status','pass_rate','inspection_date'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Manufacturing'
+UNION ALL
+SELECT subsystem_id, 'user', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('user_id','name','role'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Reporting'
+UNION ALL
+SELECT subsystem_id, 'customer', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('customer_id','name','segment'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Reporting'
+UNION ALL
+SELECT subsystem_id, 'report', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('report_id','title','report_type','created_date','user_id'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Reporting'
+UNION ALL
+SELECT subsystem_id, 'filter', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('filter_id','report_id','date_from','date_to','customer_segment'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Reporting'
+UNION ALL
+SELECT subsystem_id, 'report_template', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('template_id','layout'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Reporting'
+UNION ALL
+SELECT subsystem_id, 'export', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('export_id','report_id','format','export_date'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Reporting'
+UNION ALL
+SELECT subsystem_id, 'Roles', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('role_id','roleName','permissions'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Financial Management'
+UNION ALL
+SELECT subsystem_id, 'Users', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('userId','name','email','password','role_id'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Financial Management'
+UNION ALL
+SELECT subsystem_id, 'Sessions', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('sessionId','userId','lastAccessTime'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Financial Management'
+UNION ALL
+SELECT subsystem_id, 'Invoices', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('invoiceId','userId','amount','date','status'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Financial Management'
+UNION ALL
+SELECT subsystem_id, 'Expenses', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('expenseId','userId','category','amount','date'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Financial Management'
+UNION ALL
+SELECT subsystem_id, 'Payables', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('payableId','userId','amount','due_date','status'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Financial Management'
+UNION ALL
+SELECT subsystem_id, 'Receivables', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('receivableId','userId','amount','due_date','status'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Financial Management'
+UNION ALL
+SELECT subsystem_id, 'Ledger', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('ledgerId','userId','description','created_date'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Financial Management'
+UNION ALL
+SELECT subsystem_id, 'Transactions', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('transactionId','ledgerId','debit','credit','transaction_date'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Financial Management'
+UNION ALL
+SELECT subsystem_id, 'Payments', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('paymentId','userId','amount','payment_date','method'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Financial Management'
+UNION ALL
+SELECT subsystem_id, 'Reports', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('reportId','reportType','generatedDate','insights'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Financial Management'
+UNION ALL
+SELECT subsystem_id, 'SystemConfig', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('configId','connectionString'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Financial Management'
+UNION ALL
+SELECT subsystem_id, 'appraisal', TRUE, TRUE, TRUE, TRUE,
+JSON_ARRAY('appraise_id','appraisal_status','deadline_date','employee_id','feedback','locked','rating'),
+JSON_ARRAY('appraise_id','appraisal_status','deadline_date','employee_id','feedback','locked','rating'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'attendance_record', TRUE, TRUE, TRUE, TRUE,
+JSON_ARRAY('id','employee_id','attendance_date','check_in_time','check_out_time','overtime_hours'),
+JSON_ARRAY('employee_id','attendance_date','check_in_time','check_out_time','overtime_hours'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'benefit_enrollment', TRUE, TRUE, TRUE, TRUE,
+JSON_ARRAY('id','employee_id','enrollment_status','health_plan','insurance_plan','insurance_coverage_status'),
+JSON_ARRAY('employee_id','enrollment_status','health_plan','insurance_plan','insurance_coverage_status'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'candidate', TRUE, TRUE, TRUE, TRUE,
+JSON_ARRAY('candidate_id','candidate_name','contact_info','resume_data','interview_score','application_status','created_at','updated_at'),
+JSON_ARRAY('candidate_id','candidate_name','contact_info','resume_data','interview_score','application_status'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'claim', TRUE, TRUE, TRUE, TRUE,
+JSON_ARRAY('id','employee_id','claim_type','amount','claim_status'),
+JSON_ARRAY('employee_id','claim_type','amount','claim_status'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'leave_balance', TRUE, TRUE, TRUE, TRUE,
+JSON_ARRAY('id','employee_id','balance'),
+JSON_ARRAY('employee_id','balance'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'leave_request', TRUE, TRUE, TRUE, TRUE,
+JSON_ARRAY('id','employee_id','leave_from_date','leave_to_date','leave_status'),
+JSON_ARRAY('employee_id','leave_from_date','leave_to_date','leave_status'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'payroll', TRUE, TRUE, TRUE, TRUE,
+JSON_ARRAY('payrollId','currentMonthTotal','deductions','grossSalary','netPay','role','salaryTransferRecord','employee_id','month','year'),
+JSON_ARRAY('currentMonthTotal','deductions','grossSalary','netPay','role','salaryTransferRecord','employee_id','month','year'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'promotion', TRUE, TRUE, TRUE, TRUE,
+JSON_ARRAY('promotion_id','effective_date','employee_id','new_role'),
+JSON_ARRAY('promotion_id','effective_date','employee_id','new_role'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'workforce_plan', TRUE, TRUE, TRUE, TRUE,
+JSON_ARRAY('id','department','hiring_forecast','hr_cost_projections','open_positions','quarter','total_budget'),
+JSON_ARRAY('department','hiring_forecast','hr_cost_projections','open_positions','quarter','total_budget'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'onboarding_record', TRUE, TRUE, TRUE, TRUE,
+JSON_ARRAY('onboarding_id','assigned_employee_id','background_check_status','document_verification_status','employee_name','pipeline_status','verified_record'),
+JSON_ARRAY('onboarding_id','assigned_employee_id','background_check_status','document_verification_status','employee_name','pipeline_status','verified_record'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'onboarding_activity_log', TRUE, TRUE, TRUE, TRUE,
+JSON_ARRAY('onboarding_id','activity'),
+JSON_ARRAY('onboarding_id','activity'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR';
+
+-- Final permission reconciliation for canonical tables and compatibility views.
+-- Keep this after the permission seed blocks so it corrects earlier INSERT IGNORE
+-- rows without changing the broader schema or deployment flow.
+INSERT INTO permission_matrix
+    (subsystem_id, resource_table, can_create, can_read, can_update, can_delete, readable_columns, writable_columns, allowed_row_filter)
+SELECT subsystem_id, 'campaigns', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('campaign_id','campaign_title','campaign_name','campaign_type','target_vehicle_segment','campaign_budget','budget','revenue','target_leads','segment_id','start_date','end_date','campaign_roi','campaign_results','impressions','clicks','conversions','lead_target','leads_generated','created_at','updated_at'),
+JSON_ARRAY('campaign_title','campaign_name','campaign_type','target_vehicle_segment','campaign_budget','budget','revenue','target_leads','segment_id','start_date','end_date','campaign_roi','campaign_results','impressions','clicks','conversions','lead_target','leads_generated'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'CRM'
+UNION ALL
+SELECT subsystem_id, 'leads', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('lead_id','name','email','status','created_at','updated_at'),
+JSON_ARRAY('name','email','status'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Sales Management'
+UNION ALL
+SELECT subsystem_id, 'campaigns', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('campaign_id','campaign_title','campaign_name','campaign_type','target_vehicle_segment','campaign_budget','budget','revenue','target_leads','segment_id','start_date','end_date','campaign_roi','campaign_results','impressions','clicks','conversions','lead_target','leads_generated','created_at','updated_at'),
+JSON_ARRAY('campaign_title','campaign_name','campaign_type','target_vehicle_segment','campaign_budget','budget','revenue','target_leads','segment_id','start_date','end_date','campaign_roi','campaign_results','impressions','clicks','conversions','lead_target','leads_generated'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Marketing'
+UNION ALL
+SELECT subsystem_id, 'suppliers', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('supplier_id','supplier_name','contact_info','address','compliance_status','scorecard','approved','payment_terms','updated_at'),
+JSON_ARRAY('supplier_name','contact_info','address','compliance_status','scorecard','approved','payment_terms'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Supply Chain'
+UNION ALL
+SELECT subsystem_id, 'purchase_orders', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('po_id','supplier_id','order_date','status','amount','total_amount','created_date','approval_date','created_by','approved_by','eta','updated_at'),
+JSON_ARRAY('supplier_id','order_date','status','amount','total_amount','created_date','approval_date','created_by','approved_by','eta'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Supply Chain'
+UNION ALL
+SELECT subsystem_id, 'shipments', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('shipment_id','order_id','shipment_status','dispatch_date','delivery_date','carrier_info'),
+JSON_ARRAY('order_id','shipment_status','dispatch_date','delivery_date','carrier_info'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Order Processing'
+UNION ALL
+SELECT subsystem_id, 'shipments', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('shipment_id','order_id','shipment_status','dispatch_date','delivery_date','carrier_info'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Supply Chain'
+UNION ALL
+SELECT subsystem_id, 'materials', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('product_id','product_name','category','uom','stock_qty','reorder_level'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Supply Chain'
+UNION ALL
+SELECT subsystem_id, 'production_orders', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('production_order_id','order_id','car_vin','product_item_id','order_quantity','order_status','due_date','planned_start_date','planned_end_date','actual_start_date','actual_end_date','priority','qty_planned','qty_produced','scrap_qty','assembly_line_id','updated_at'),
+JSON_ARRAY('order_id','car_vin','product_item_id','order_quantity','order_status','due_date','planned_start_date','planned_end_date','actual_start_date','actual_end_date','priority','qty_planned','qty_produced','scrap_qty','assembly_line_id'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Manufacturing'
+UNION ALL
+SELECT subsystem_id, 'quality_inspections', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('inspection_id','production_order_id','pass_fail_status','pass_rate','inspection_date','compliance_code','defects_count','sample_size','updated_at'),
+JSON_ARRAY('production_order_id','pass_fail_status','pass_rate','inspection_date','compliance_code','defects_count','sample_size'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Manufacturing'
+UNION ALL
+SELECT subsystem_id, 'employees', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('employee_id','user_id','employee_name','department','job_role','assigned_assembly_line','shift_schedule','email','phone_no','hire_date','salary','employment_status','created_at','updated_at'),
+JSON_ARRAY('user_id','employee_name','department','job_role','assigned_assembly_line','shift_schedule','email','phone_no','hire_date','salary','employment_status'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'recruitment_candidates', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('candidate_id','candidate_name','contact_info','resume_data','interview_score','application_status','updated_at'),
+JSON_ARRAY('candidate_name','contact_info','resume_data','interview_score','application_status'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'payroll_records', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('payroll_id','employee_id','gross_salary','deductions','net_pay','tax_record','processed_date','updated_at'),
+JSON_ARRAY('employee_id','gross_salary','deductions','net_pay','tax_record','processed_date'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'attendance_records', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('attendance_id','employee_id','attendance_date','overtime_hours','updated_at'),
+JSON_ARRAY('employee_id','attendance_date','overtime_hours'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'leave_requests', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('leave_request_id','employee_id','leave_from_date','leave_to_date','leave_type','leave_status','updated_at'),
+JSON_ARRAY('employee_id','leave_from_date','leave_to_date','leave_type','leave_status'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'performance_reviews', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('review_id','employee_id','rating','feedback','review_date','updated_at'),
+JSON_ARRAY('employee_id','rating','feedback','review_date'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'HR'
+UNION ALL
+SELECT subsystem_id, 'reports', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('report_id','title','report_name','title_alias','report_type','generated_by','generated_date','start_date','end_date','format_id','report_data','content','updated_at'),
+JSON_ARRAY('title','report_name','title_alias','report_type','generated_by','generated_date','start_date','end_date','format_id','report_data','content'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Reporting'
+UNION ALL
+SELECT subsystem_id, 'report_filters', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('filter_id','report_id','date_range','date_from','date_to','customer_segment','updated_at'),
+JSON_ARRAY('report_id','date_range','date_from','date_to','customer_segment'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Reporting'
+UNION ALL
+SELECT subsystem_id, 'report_templates', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('template_id','title','layout','report_type','updated_at'),
+JSON_ARRAY('title','layout','report_type'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Reporting'
+UNION ALL
+SELECT subsystem_id, 'report_exports', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('export_id','report_id','format','export_date','updated_at'),
+JSON_ARRAY('report_id','format','export_date'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Reporting'
+UNION ALL
+SELECT subsystem_id, 'reports', FALSE, TRUE, FALSE, FALSE,
+JSON_ARRAY('report_id','title','report_name','title_alias','report_type','generated_by','generated_date','start_date','end_date','format_id','report_data','content','updated_at'),
+JSON_ARRAY(),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Financial Management'
+UNION ALL
+SELECT subsystem_id, 'reports', TRUE, TRUE, TRUE, FALSE,
+JSON_ARRAY('report_id','title','report_name','title_alias','report_type','generated_by','generated_date','start_date','end_date','format_id','report_data','content','updated_at'),
+JSON_ARRAY('title','report_name','title_alias','report_type','generated_by','generated_date','start_date','end_date','format_id','report_data','content'),
+NULL
+FROM integration_registry WHERE subsystem_name = 'Business Intelligence'
+ON DUPLICATE KEY UPDATE
+    can_create = VALUES(can_create),
+    can_read = VALUES(can_read),
+    can_update = VALUES(can_update),
+    can_delete = VALUES(can_delete),
+    readable_columns = VALUES(readable_columns),
+    writable_columns = VALUES(writable_columns),
+    allowed_row_filter = VALUES(allowed_row_filter),
+    updated_at = CURRENT_TIMESTAMP;
+
 INSERT INTO system_config (config_key, connection_string, config_value) VALUES
 ('db.default', 'jdbc:mysql://localhost:3306/erp_integration', 'Primary local connection string');
 
@@ -2801,6 +3568,105 @@ SELECT order_id, 'Robot Calibration', 18000.00, CURRENT_DATE, 'Compatibility see
 FROM orders
 ORDER BY order_id
 LIMIT 1;
+
+CREATE VIEW `Roles` AS
+SELECT
+    role_id,
+    role_name AS roleName,
+    NULL AS permissions
+FROM roles;
+
+CREATE VIEW `Users` AS
+SELECT
+    user_id AS userId,
+    COALESCE(username, email) AS name,
+    email,
+    password_hash AS password,
+    role_id
+FROM users;
+
+CREATE VIEW `Sessions` AS
+SELECT
+    session_id AS sessionId,
+    user_id AS userId,
+    last_access_at AS lastAccessTime
+FROM user_sessions;
+
+CREATE VIEW `Invoices` AS
+SELECT
+    invoice_id AS invoiceId,
+    order_id AS userId,
+    invoice_amount AS amount,
+    generated_date AS date,
+    invoice_status AS status
+FROM invoices;
+
+CREATE VIEW `Expenses` AS
+SELECT
+    expense_id AS expenseId,
+    approved_by AS userId,
+    category,
+    amount,
+    expense_date AS date
+FROM expenses;
+
+CREATE VIEW `Payables` AS
+SELECT
+    payable_id AS payableId,
+    supplier_id AS userId,
+    amount_due AS amount,
+    due_date,
+    status
+FROM payables;
+
+CREATE VIEW `Receivables` AS
+SELECT
+    receivable_id AS receivableId,
+    customer_id AS userId,
+    amount_due AS amount,
+    due_date,
+    status
+FROM receivables;
+
+CREATE VIEW `Ledger` AS
+SELECT
+    ledger_id AS ledgerId,
+    user_id AS userId,
+    description,
+    created_date
+FROM ledger;
+
+CREATE VIEW `Transactions` AS
+SELECT
+    transaction_id AS transactionId,
+    ledger_id AS ledgerId,
+    debit,
+    credit,
+    transaction_date
+FROM transactions;
+
+CREATE VIEW `Payments` AS
+SELECT
+    payment_id AS paymentId,
+    order_id AS userId,
+    amount,
+    payment_date,
+    payment_method AS method
+FROM payments;
+
+CREATE VIEW `Reports` AS
+SELECT
+    report_id AS reportId,
+    report_type AS reportType,
+    generated_date AS generatedDate,
+    content AS insights
+FROM reports;
+
+CREATE VIEW `SystemConfig` AS
+SELECT
+    config_id AS configId,
+    connection_string AS connectionString
+FROM system_config;
 
 CREATE VIEW `user` AS
 SELECT

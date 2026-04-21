@@ -4,6 +4,7 @@ import com.erp.sdk.backup.BackupAdapter;
 import com.erp.sdk.context.AccessContext;
 import com.erp.sdk.db.ConnectionManager;
 import com.erp.sdk.exception.DatabaseOperationException;
+import com.erp.sdk.exception.LocalExceptionHandler;
 import com.erp.sdk.logging.AuditLogger;
 import com.erp.sdk.security.CrudAction;
 import com.erp.sdk.security.CrudPermission;
@@ -267,6 +268,9 @@ public abstract class AbstractSubsystem implements AutoCloseable {
                 throw exception;
             }
         } catch (Exception exception) {
+            if (exception instanceof SQLException sqlException) {
+                throw LocalExceptionHandler.mapSqlException("Database operation failed for " + action + " on " + tableName, sqlException);
+            }
             if (exception instanceof RuntimeException runtimeException) {
                 throw runtimeException;
             }
