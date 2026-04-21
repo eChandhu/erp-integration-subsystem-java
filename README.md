@@ -1,63 +1,22 @@
-# LikeSecA Local ERP Database Module
+# Local ERP Database Module
 
-`LikeSecA` is a new local-first database integration module modeled after the layered structure used in `database_module-main`, but implemented for your ERP system, your canonical schema, and your subsystem access rules.
+A local-first Java database module for a multi-subsystem ERP system.
 
-It uses:
+This project packages the full ERP schema, bootstraps it into a local MySQL instance on first use, seeds subsystem access metadata, and exposes a shared Java facade that other subsystem teams can consume through a JAR.
 
-- bundled schema bootstrap
-- local MySQL only
-- a shared top-level facade
-- subsystem-specific adapters
-- permission-controlled CRUD and joins
-- internal exception handling in code
+## Overview
 
-## What Was Implemented
+This module is designed for a distributed academic or team ERP setup where each subsystem runs on its own machine with a local MySQL server instead of a shared hosted database.
 
-The module is based on your ERP schema and permission model from:
+When a client application creates the main database facade:
 
-- `sql/01-schema.sql`
-- `DbOfTeams`
+- the module connects to local MySQL
+- creates the ERP schema if needed
+- loads the bundled SQL schema
+- seeds integration and permission metadata
+- exposes subsystem-specific facades for CRUD and join operations
 
-The canonical schema is bundled into the JAR and is bootstrapped locally on first use.
-
-Important delivery choice:
-
-- `LikeSecA` now favors reliability over strict least-privilege for local handoff use
-- every subsystem is granted access to all base tables
-- compatibility views are readable by every subsystem
-- this is intentional so teams do not fail later because of missing permission rows
-
-## Architecture
-
-The project follows the same style of layered modular design as the reference project:
-
-- `config`
-  Database configuration, local connection management, schema bootstrap
-- `exception`
-  Internal database exception classification and logging
-- `security`
-  Permission lookup from `permission_matrix`
-- `service`
-  JDBC operations and permission-aware CRUD/join execution
-- `adapter`
-  One adapter per subsystem
-- `facade`
-  One top-level facade that exposes subsystem facades and adapters
-
-Patterns and principles used:
-
-- Facade
-- Adapter
-- Subsystem facade layer
-- Singleton connection manager
-- Factory-style bootstrap through `ErpDatabaseFacade`
-- Template-style shared CRUD execution through `PermissionAwareOperations`
-- layered separation of concerns
-- SOLID-friendly structure
-
-## 17 Subsystem Adapters
-
-The module exposes adapters for these 17 subsystems:
+The project currently supports 17 ERP subsystems:
 
 1. Database Integration
 2. UI
@@ -77,206 +36,145 @@ The module exposes adapters for these 17 subsystems:
 16. Financial Management
 17. Accounting
 
-Important note:
+## Key Features
 
-- `AccountingAdapter` is provided as a local integration alias and maps to the canonical Financial Management permission scope, because your canonical permission model uses `Financial Management`.
+- Local MySQL bootstrap on first use
+- Bundled canonical ERP schema
+- Shared top-level Java facade
+- Subsystem-specific facades and adapters
+- Permission-aware CRUD and join operations
+- Internal exception handling
+- Maven build and test support
+- Prebuilt handoff bundle for other teams
 
-## Files To Send To Other Teams
+## Project Structure
 
-Send the contents of:
+```text
+src/main/java/com/.../config
+src/main/java/com/.../exception
+src/main/java/com/.../security
+src/main/java/com/.../service
+src/main/java/com/.../adapter
+src/main/java/com/.../facade
+src/main/resources/sql
+src/test/java
+dist/
+IntegrationDB/
+```
 
-`LikeSecA/dist`
+Main areas:
 
-Specifically:
+- `config`: database configuration, connection management, schema bootstrap
+- `exception`: internal exception mapping and logging
+- `security`: permission lookup from `permission_matrix`
+- `service`: JDBC execution and permission-aware operations
+- `adapter`: subsystem-specific adapters
+- `facade`: top-level facade and subsystem facades
+- `src/main/resources/sql`: bundled schema and verification SQL
+- `dist`: prebuilt distribution bundle
+- `IntegrationDB`: ready-to-share delivery bundle
 
-1. `local-database-module-1.0.0.jar`
-2. `database-template.properties`
-3. `README_FOR_OTHER_TEAMS.md`
-4. `lib/mysql-connector-j-9.3.0.jar`
-5. `lib/slf4j-api-2.0.17.jar`
-6. `lib/slf4j-simple-2.0.17.jar`
+## Requirements
 
-That is the handoff bundle.
+- Java 21
+- Maven 3.9+
+- MySQL 8+ running locally
+- A MySQL user with permission to create databases, tables, views, and seed data
 
-Do not send source code folders.
-Do not ask teams to rebuild the JAR.
-Send the prebuilt `dist` bundle only.
+## Configuration
 
-## What You Should Test On Your Machine
+The module reads configuration from:
 
-Before sending anything, do this on your own machine.
+1. JVM system properties
+2. environment variables
+3. `database.properties` on the classpath
 
-### 1. Make sure local MySQL is running
-
-Use normal local MySQL.
-
-You do not need Docker.
-
-Expected local connection style:
-
-- host: `127.0.0.1`
-- port: `3306`
-
-Your local MySQL user must be able to:
-
-- create databases
-- drop databases
-- create tables
-- create views
-- create procedures
-- insert seed data
-
-### 2. Edit the local config
-
-File:
-
-`LikeSecA/src/main/resources/database.properties`
-
-Set:
+Typical configuration:
 
 ```properties
 db.host=127.0.0.1
 db.port=3306
 db.name=erp_subsystem
-db.username=your_local_mysql_username
+db.username=root
 db.password=your_local_mysql_password
 db.pool.size=4
 ```
 
-If you want to keep your source file unchanged, you can also pass these at runtime through JVM properties:
+Supported environment variables:
+
+- `DB_HOST`
+- `DB_PORT`
+- `DB_NAME`
+- `DB_USERNAME`
+- `DB_PASSWORD`
+- `DB_POOL_SIZE`
+
+## Build
 
 ```powershell
--Ddb.host=127.0.0.1 -Ddb.port=3306 -Ddb.name=erp_subsystem -Ddb.username=your_local_mysql_username -Ddb.password=your_local_mysql_password
-```
-
-### 3. Build the module
-
-From inside `LikeSecA`:
-
-```powershell
-cd "C:\Users\harsh\OneDrive\Desktop\try 2\LikeSecA"
+cd "C:\Path\To\Project"
 $env:MAVEN_OPTS='-Dmaven.repo.local=.m2\repository'
 mvn package
 ```
 
-Expected result:
+Expected output:
 
 - `target/local-database-module-1.0.0.jar`
-- `BUILD SUCCESS`
 
-### 4. Run the demo
-
-From inside `LikeSecA`:
+## Run The Demo
 
 ```powershell
-cd "C:\Users\harsh\OneDrive\Desktop\try 2\LikeSecA"
+cd "C:\Path\To\Project"
 mvn exec:java
 ```
 
-What should happen:
-
-- the module connects to local MySQL
-- it creates `erp_subsystem` if needed
-- it bootstraps the full canonical schema from the bundled SQL
-- it seeds integration and permission data
-- it prints a small demo summary
-
-If you prefer running the built JAR directly after `mvn package`, use:
+Or run the built JAR directly:
 
 ```powershell
-cd "C:\Users\harsh\OneDrive\Desktop\try 2\LikeSecA"
+cd "C:\Path\To\Project"
 java -cp "target\local-database-module-1.0.0.jar;dist\lib\*" com.likeseca.erp.database.facade.DemoApplication
 ```
 
-If you want to pass DB settings without editing `database.properties`, use:
+If you prefer passing DB settings at runtime:
 
 ```powershell
-cd "C:\Users\harsh\OneDrive\Desktop\try 2\LikeSecA"
-java -Ddb.host=127.0.0.1 -Ddb.port=3306 -Ddb.name=erp_subsystem -Ddb.username=your_local_mysql_username -Ddb.password=your_local_mysql_password -cp "target\local-database-module-1.0.0.jar;dist\lib\*" com.likeseca.erp.database.facade.DemoApplication
+cd "C:\Path\To\Project"
+java -Ddb.host=127.0.0.1 -Ddb.port=3306 -Ddb.name=erp_subsystem -Ddb.username=your_mysql_username -Ddb.password=your_mysql_password -cp "target\local-database-module-1.0.0.jar;dist\lib\*" com.likeseca.erp.database.facade.DemoApplication
 ```
 
-### 5. Run the test suite
+## Run Tests
 
-From inside `LikeSecA`:
+Full suite:
 
 ```powershell
-cd "C:\Users\harsh\OneDrive\Desktop\try 2\LikeSecA"
+cd "C:\Path\To\Project"
 $env:MAVEN_OPTS='-Dmaven.repo.local=.m2\repository'
-mvn "-Ddb.host=127.0.0.1" "-Ddb.port=3306" "-Ddb.name=erp_subsystem" "-Ddb.username=your_local_mysql_username" "-Ddb.password=your_local_mysql_password" test
+mvn "-Ddb.host=127.0.0.1" "-Ddb.port=3306" "-Ddb.name=erp_subsystem" "-Ddb.username=your_mysql_username" "-Ddb.password=your_mysql_password" test
 ```
 
-This test suite now checks:
-
-- schema bootstrap does not crash
-- `integration_registry` is seeded
-- `permission_matrix` is seeded
-- all subsystem registrations exist
-- your database-integration subsystem can read shared tables
-- the new subsystem-facade API is available
-- all 17 subsystem facades can read representative tables
-- all 17 subsystem facades can complete a safe customer CRUD cycle
-
-If you want to run only the subsystem behavior suite:
+Subsystem behavior suite only:
 
 ```powershell
-cd "C:\Users\harsh\OneDrive\Desktop\try 2\LikeSecA"
+cd "C:\Path\To\Project"
 $env:MAVEN_OPTS='-Dmaven.repo.local=.m2\repository'
-mvn "-Ddb.host=127.0.0.1" "-Ddb.port=3306" "-Ddb.name=erp_subsystem" "-Ddb.username=your_local_mysql_username" "-Ddb.password=your_local_mysql_password" "-Dtest=AllSubsystemBehaviorSmokeTest" test
+mvn "-Ddb.host=127.0.0.1" "-Ddb.port=3306" "-Ddb.name=erp_subsystem" "-Ddb.username=your_mysql_username" "-Ddb.password=your_mysql_password" "-Dtest=AllSubsystemBehaviorSmokeTest" test
 ```
 
-### 6. Verify in MySQL Workbench
+The current test coverage includes:
 
-Check:
+- schema bootstrap smoke checks
+- seeded metadata validation
+- facade API surface checks
+- behavior smoke coverage for all 17 subsystems
 
-- schema `erp_subsystem` exists
-- `integration_registry` exists
-- `permission_matrix` exists
-- `users` exists
-- shared ERP tables exist
-- compatibility views exist
-
-## Important Bootstrap Behavior
-
-The bootstrapper checks whether the schema is ready.
-
-If it sees a partial or broken initialization, it resets the local `erp_subsystem` database and recreates it cleanly.
-
-So:
-
-- use `erp_subsystem` only for this ERP project
-- do not store unrelated work inside that schema
-
-## How Other Teams Should Use It
-
-Other teams should:
-
-1. add the JAR and the `lib` jars to their project classpath
-2. copy `database-template.properties` into their project
-3. fill in their own local MySQL username/password
-4. instantiate `ErpDatabaseFacade`
-5. use their subsystem facade entry point first
-
-Recommended rule for teams:
-
-- use their own adapter first
-- prefer their own subsystem facade method such as `facade.crmSubsystem()`
-- if they need cross-subsystem data, they can still read the required local tables through the same facade
-- they should not create their own direct JDBC layer around the schema
-
-They should not:
-
-- connect directly to the ERP schema using JDBC
-- manually run the schema in normal usage
-- modify the permission matrix manually
-
-## Example Usage
+## Usage Example
 
 ```java
 import com.likeseca.erp.database.facade.ErpDatabaseFacade;
 
 import java.util.Map;
 
-public class CrmClientApp {
+public class TeamApp {
     public static void main(String[] args) {
         try (ErpDatabaseFacade facade = new ErpDatabaseFacade()) {
             System.out.println(
@@ -287,54 +185,77 @@ public class CrmClientApp {
 }
 ```
 
-The older adapter-style calls such as `facade.crm()` still work, but the newer subsystem-facade methods match the reference project structure more closely.
+Available subsystem entry points include:
 
-## What I Can And Cannot Guarantee
+- `databaseIntegrationSubsystem()`
+- `uiSubsystem()`
+- `crmSubsystem()`
+- `marketingSubsystem()`
+- `salesManagementSubsystem()`
+- `orderProcessingSubsystem()`
+- `supplyChainSubsystem()`
+- `manufacturingSubsystem()`
+- `hrSubsystem()`
+- `projectManagementSubsystem()`
+- `reportingSubsystem()`
+- `dataAnalyticsSubsystem()`
+- `businessIntelligenceSubsystem()`
+- `automationSubsystem()`
+- `businessControlSubsystem()`
+- `financialManagementSubsystem()`
+- `accountingSubsystem()`
 
-What is true:
+## How Bootstrap Works
 
-- the new `LikeSecA` module was created
-- it follows the same general layered implementation style as the reference project
-- it builds successfully in this workspace
-- the canonical ERP schema is bundled into the new module
-- local bootstrap, permission-aware CRUD, joins, and subsystem adapters are implemented
+On first run, the module loads the bundled schema from `src/main/resources/sql/01-schema.sql` and creates the local ERP schema automatically.
 
-What I cannot honestly guarantee:
+If the module detects a broken or partial initialization, it may recreate the target schema to recover to a clean state. Because of that:
 
-- zero runtime errors on every team machine without testing their actual local MySQL setup
-- success if a team uses wrong credentials or insufficient MySQL privileges
-- success if they wire the classpath incorrectly
+- use the configured schema only for this project
+- do not store unrelated data in the same schema
 
-## Final Checklist Before Sending
+## Permissions Model
 
-1. set your real local MySQL username and password in `LikeSecA/src/main/resources/database.properties`
-2. run `mvn package`
-3. run `mvn exec:java` once on your machine
-4. run `mvn test` once on your machine
-5. verify `erp_subsystem` in MySQL Workbench
-6. confirm a few subsystem facades can read data without permission failures
-7. send only the `LikeSecA/dist` bundle to the teams
+The module seeds and uses a `permission_matrix` table for subsystem access checks.
 
-## Exactly What You Should Send
+For the current handoff version, the permission setup is intentionally broad to reduce cross-team integration failures on local machines. That means the module prioritizes reliable access over strict least-privilege during handoff and demo use.
 
-Create a folder named:
+## Distribution
 
-`IntegrationDB`
+The repository includes a prebuilt delivery bundle under `dist/` and a ready-to-share handoff folder under `IntegrationDB/`.
 
-Inside that folder, keep these files exactly:
+The bundle contains:
 
-1. `local-database-module-1.0.0.jar`
-2. `database-template.properties`
-3. `README_FOR_OTHER_TEAMS.md`
-4. `lib/mysql-connector-j-9.3.0.jar`
-5. `lib/slf4j-api-2.0.17.jar`
-6. `lib/slf4j-simple-2.0.17.jar`
+- `local-database-module-1.0.0.jar`
+- `database-template.properties`
+- `README_FOR_OTHER_TEAMS.md`
+- `lib/mysql-connector-j-9.3.0.jar`
+- `lib/slf4j-api-2.0.17.jar`
+- `lib/slf4j-simple-2.0.17.jar`
 
-The easiest way is:
+## Recommended Team Handoff Flow
 
-```powershell
-cd "C:\Users\harsh\OneDrive\Desktop\try 2\LikeSecA"
-Copy-Item -LiteralPath ".\dist" -Destination ".\IntegrationDB" -Recurse -Force
+If another subsystem team needs to use this module locally:
+
+1. Place the `IntegrationDB` folder inside their project folder.
+2. Copy `IntegrationDB\database-template.properties` to `database.properties` in their project root.
+3. Update MySQL credentials in `database.properties`.
+4. Compile their project with the JAR and dependency JARs from `IntegrationDB`.
+5. Run their own main class with the same classpath.
+
+## Quick Verification
+
+After the first successful run, verify in MySQL:
+
+```sql
+SHOW DATABASES;
+USE erp_subsystem;
+SHOW TABLES;
+SELECT subsystem_name FROM integration_registry;
 ```
 
-Then send that `IntegrationDB` folder to the other teams.
+## Notes
+
+- This project is intended for local use, not hosted deployment.
+- It assumes each team runs its own local MySQL-backed copy.
+- Environment setup still matters: Java version, MySQL permissions, and classpath configuration must be correct on each machine.
