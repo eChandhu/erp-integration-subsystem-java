@@ -1,31 +1,28 @@
 # ERP Subsystem Database SDK
 
-This project is the local-first database SDK for the ERP integration module.
-Each team receives the JAR, runs MySQL on their own machine, and creates the
-facade object. The constructor bootstraps the local database, creates the ERP
-schema if needed, and loads the permission matrix seed data.
+This project is the local-first database SDK for the ERP integration scope.
+Each team runs the jar on its own machine, points it at its own local MySQL
+server, and creates the facade object. The facade constructor bootstraps the
+schema, creates the required tables, and seeds the access-control data that the
+team is allowed to use.
 
-The important design change is simple:
+## What Changed From The Old Setup
 
 - no centralized RDS database
 - no shared remote database dependency
-- no separate Exception subsystem JAR for other teams
-- one local MySQL instance per team machine
+- no exception-handler jar for other teams to distribute
+- one local MySQL database per machine
 
-## What ships in the JAR
+## Canonical Files
 
-- `ErpDatabaseFacade` as the single entry point for other teams
-- `SchemaBootstrapper` to create the database and tables on first use
-- `permission_matrix` and `integration_registry` seed data
-- audit logging through `audit_logs`
+Only these three markdown files are kept in the repository:
 
-## Canonical schema source
+- [README.md](README.md)
+- [INTEGRATION.md](INTEGRATION.md)
+- [DATABASE_SCHEMA_REFERENCE.md](DATABASE_SCHEMA_REFERENCE.md)
 
-The runtime schema that gets packaged into the JAR lives in
-`src/main/resources/schema.sql`.
-
-The same schema is also mirrored at the repository root as `schema.sql` so
-other teams can see the exact bootstrap file immediately.
+The visible schema copy is at the repository root as [schema.sql](schema.sql).
+The runtime copy used by the jar lives in `src/main/resources/schema.sql`.
 
 ## Build
 
@@ -38,9 +35,16 @@ This produces:
 - `target/erp-subsystem-sdk-1.0.0.jar`
 - `target/erp-subsystem-sdk-1.0.0-standalone.jar`
 
-The circulation files are collected in [distribution/](distribution/README.md).
-Send the standalone JAR from that folder to other teams if they do not want to
-manage Maven dependencies themselves.
+## Distribution Folder
+
+For circulation, use the files in `distribution/`:
+
+- `erp-subsystem-sdk-1.0.0.jar`
+- `erp-subsystem-sdk-1.0.0-standalone.jar`
+- `application-example.properties`
+- `application-local.properties`
+- `application-local-template.properties`
+- `schema.sql`
 
 ## Local Defaults
 
@@ -52,37 +56,31 @@ db.username=erp_user
 db.password=erp_password
 ```
 
-These values can be overridden with `application.properties`,
-`application-local.properties`, JVM system properties, or environment
-variables.
+These values can be overridden through the local properties files, JVM system
+properties, or environment variables.
 
-## How Other Teams Use It
+## How Teams Use It
 
 ```java
 import com.erp.sdk.facade.ErpDatabaseFacade;
 import com.erp.sdk.subsystem.SubsystemName;
 
-import java.util.Map;
-
 try (ErpDatabaseFacade facade = new ErpDatabaseFacade(SubsystemName.CRM)) {
-    var rows = facade.readAll("customers", Map.of(), "admin_main");
-    System.out.println(rows);
+    // use the facade methods here
 }
 ```
 
-Creating the facade is the important step. That is what creates the local
-schema and starts enforcing the subsystem permission matrix.
+Creating the facade is the important step. That is what initializes the local
+database and applies the permission matrix for the team that owns the jar.
 
-## Root Documentation
+## Sharing With Other Teams
 
-The explanation files live in the repository root so they are easy to share
-with teams:
+When you circulate the project, send:
 
-- `DATABASE_ARCHITECTURE.md`
-- `DATABASE_SCHEMA_REFERENCE.md`
-- `INTEGRATION.md`
-- `QUICK_START.md`
-- `README_FOR_OTHER_TEAMS_LOCAL.md`
-- `LOCAL_DATABASE_USAGE.md`
-- `schema.sql`
-- `distribution/README.md`
+1. the standalone jar
+2. one properties file that matches their local MySQL setup
+3. `schema.sql`
+4. this README
+5. `INTEGRATION.md`
+6. `DATABASE_SCHEMA_REFERENCE.md`
+
